@@ -1,10 +1,13 @@
 # Set the directory for R
-setwd("/home/user/R/SLSCP")
+setwd("/home/student/mydocker2")
 
 ##############################################################################
 # Turn off global warning messages 
 turnOffWarningMessages <- getOption("warn")
 options(warn = -1)
+
+ #suppressPackageStartupMessages(library(sqldf))
+suppressPackageStartupMessages(library(dplyr))
 
 ## If a package is installed, it will be loaded. If any 
 ## are not, the missing package(s) will be installed 
@@ -12,23 +15,26 @@ options(warn = -1)
 
 
 ## First specify the packages of interest
-packages = c("sqldf","tidyverse") 
+# packages = c("dplyr") 
+#"sqldf",,"readr"
 
 ## Now load or install & load all
-package.check <- lapply(
-  packages,
-  FUN = function(x) {
-    if (!require(x, character.only = TRUE)) {
-      install.packages(x, dependencies = TRUE)
-      suppressPackageStartupMessages(library(x, character.only = TRUE))
-    }
-  }
-)
+# package.check <- lapply(
+#   packages,
+#   FUN = function(x) {
+#     if (!require(x, character.only = TRUE)) {
+#       install.packages(x, dependencies = TRUE)
+#       suppressPackageStartupMessages(library(x, character.only = TRUE))
+#     }
+#   }
+# )
 
+print("Starting Workflow")
 ##############################################################################
 ###### READ DATA
 ##############################################################################
 # Read input files
+print("Importing Dataframe's")
 plans <- read.csv("data/plans.csv")
 slscp <- read.csv("data/slcsp.csv")
 zips  <- read.csv("data/zips.csv")
@@ -36,7 +42,7 @@ zips  <- read.csv("data/zips.csv")
 ##################################
 # Functions
 ##################################
-
+print("Creating Functions...")
 #Create a function to calculate 2nd lowest value
 fnRate = function(x) {
   min(x[x != min(x)])  
@@ -52,7 +58,7 @@ fnc = function(var, decimal.places) {
 ###########################
 # Manipulate Data
 ###########################
-
+print("Manipulating Data")
 # Create a rate/zip reference table. 
 # Only include metal class silver and remove the plan_id and metal_level columns.
 # Find unique values in the data set and remove duplicate data.
@@ -125,15 +131,6 @@ zipRateScpCri <-  left_join(findZipsAndRates,
                            dplyr::select(zipcode,rate),
                          by = 'zipcode')
 
-
-
-# Verify there's 31 unique zip codes
-# sqldf("
-#       select distinct zipcode
-#       from zipRateScpCri 
-#       order by zipcode
-#       ")
-
 #Calculate the 2nd lowest silver plan for zip codes that meet the criteria
 CalScp <- zipRateScpCri %>%
   select(zipcode,state,name,rate) %>%
@@ -141,7 +138,7 @@ CalScp <- zipRateScpCri %>%
   mutate(rate = fnRate(rate))
 
 # Create a df with just the zipcodes and 2nd lowest cost plan
-stageSt <- sqldf("SELECT distinct zipcode, rate from CalScp C")
+stageSt <- CalScp %>% distinct(zipcode, rate)
 
 
 # Create Stdout and grab all zip codes from slscp, fill in the rates that meet 
@@ -159,10 +156,11 @@ Stdout$rate = mapply(fnc, Stdout$rate, 2)
 ##############################################################################
 # Export data and put an output message
 ##############################################################################
+print("Writing manipulated Data to .csv")
 # Export Stdout to a CSV file
-write_csv(Stdout, file = "data/output/Stdout.csv")
+write.csv(Stdout, file = "output/Stdout.csv")
 
 #Print an output message for the user.
-print("Script has successfully ran! Check the data/output folder for the output file 'Stdout'")
+print("Workflow finished. Check the output folder for the new csv file.'")
 
 options(warn = turnOffWarningMessages)
