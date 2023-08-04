@@ -1,21 +1,23 @@
-# Base image https://hub.docker.com/u/rocker/
-#FROM rocker/r-base:latest
-FROM rocker/r-ver:4.0.1
+FROM r-base:latest
+
+ARG WHEN
 
 ## create directories
-RUN mkdir -p /data /output
+RUN mkdir -p /data
+RUN mkdir -p /output
 
 # Install package dplyr
 RUN install2.r --error dplyr
 
-#WORKDIR /home/student/mydocker2
+# Set Working Directory
+WORKDIR /home/SLSCP
 
 ## copy files
 COPY /myScript.R /myScript.R
+COPY /data/plans.csv /data/plans.csv
+COPY /data/slcsp.csv /data/slcsp.csv
+COPY /data/zips.csv /data/zips.csv
+COPY /output /output
 
-
-## install R-script
-# CMD ["Rscript", "myScript.R"]
-
-## install R-packages
-RUN Rscript /myScript.R
+## run the script
+CMD R -e "source('/myScript.R')"

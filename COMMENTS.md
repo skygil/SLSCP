@@ -1,5 +1,4 @@
 # SLCSP
-*** 
 I have included the following files/folder in a zip file.   
 
 * COMMENTS.md  
@@ -7,45 +6,75 @@ I have included the following files/folder in a zip file.
   * plans.csv  
   * slscp.csv  
   * zips.csv  
-  * output (an empty folder that'll be populated once the script runs)  
-* slscpCode.R (the script that you'll run)  
+* output (an empty folder that'll be populated once the script runs)  
+* myScript.R 
+* Dockerfile.txt  
   
-You will want to extract these and put them in the directory of **/home/user**. Keep the subfolders in this zip file as they are called in the script. 
+You will want to extract these and put them in the directory of **/home/SLSCP**. Keep the subfolders in this zip file as they are called in the script. 
 
-The file directory is set to **/home/user/R/SLSCP** in the script. If this needs to be changed, you will need to update the first line of code in the slscpCode.R script.
+The file directory is set to **/home/SLSCP** in the script. If this needs to be changed, you will need to update the code in the myScript.R script to the file path you use.
 
+# Creating the Docker Image and Running the code
 
+1. Extract the files to **_home/SLSCP_**
+2. Open the linux terminal and change the directory to **home/SLSCP** (this is where the docker file is located).   
+`cd ~/SLSCP`      
+3. Next, build the docker image. Note, this may take some time as it will need to load R package *dplyr* and it's package dependencies :  
+ `docker build -t slscp/myimage .`
+4. Run the image you just built.  
+ `docker run -it --rm -v "$PWD":/home/SLSCP/output -w /home/SLSCP/output slscp/myimage `
 
-# Installing R
-*** 
-* First you will need to have R installed. If you do not have this program, you can install it from 
-<https://www.r-project.org>  or from the command line.
-You will need R version **3.3** or newer. The recommended version of R to use is, **4.3.0 (2023-04-21) -- "Already Tomorrow"**.
+5. When the image is at an end, you will see a message displayed in the terminal:
+ *Script has successfully ran! Check the data/output folder for the output file 'Stdout'*   
+6. Check the output file located in **R/SLSCP/output** for Stdout.csv  
 
-## R Packages
-There are two main packages used, 'sqldf' and 'tidyverse', in order to use these packages, you'll need to have R version **3.3** or newer.
+# Alternative option for running the SLSCP Code
+Here is an alternative to running the R code:
 
-### Installing from command line:
+1. Type in the following code in the terminal  
+`docker run -detach -p 8787:8787 -e PASSWORD=yourpassword --name my-rstudio rocker/rstudio`
+2. RStudio can now be opened by going to [localhost:8787](http://localhost:8787/) in a web browser. 
+3. The username will be **rstudio** and password will be the environment variable provided. In this case it's **yourpassword**.
+![Alt text][RstudioLogin]  
+![Alt text][RstudioExample]  
 
+4. Next, you'll need to create the same file structure as in SLSCP in R studio. So you'll need two folders, one called **data** and the other called **output**
+ This can be done by clicking on the new folder button in the right bottom pane.
+5. Once you've created these folders, click on the upload button. This is also in the same pane as the New Folder.
+6. From there, locate the SLSCP folder on your system, and upload the csv files to the data folder you just created in R studio.
+7. Just as you did in step 6, you will need to upload **myScriptFinal.R** to the main directory. 
+8. Open **myScriptFinal.R** by single clicking on the file in RStudio
+9. There should be a pop up asking you to install *dplyr*, click install, or:  
+    Comment out line 5, and  uncomment line 13 and lines 16 thru 24.   
+    *Note: To comment/uncomment lines of code, select the code and then push ctrl+shift+C*
+10. Next, you'll need to run the entire script. You can use the shorthand keyboard shortcut by pressing Ctrl+Alt+R, or you can select all the code and press the Run bottom in the first pane on the left.
+11. Once the code has successfully ran, an output message in the console (left pane on the bottom) will print a message confirming the workflow is finished. Once done, navigate to the output folder (right bottom pane).
+12. Now you can view *Stdout.csv* in this environment, or select the check box next to this file and click on the **More** button (tool bar in right bottom pane furthest on the right).
+13. Once you click on **More** select 'Export'.
+14. A pop up will appear confirming you'd like to download the file.
+15. When you are finished with this environment, you'll need to stop the container. You can do this by typing the following in the linux terminal:
+`docker rm --force my-rstudio`  
 
-Open command line 
-run the following commands:
+---
+# Troubleshooting
 
-* `sudo apt update`    
-* `sudo apt install r-base r-base-dev`  
+## Output folder missing csv file
+If you do not see the CSV file in the output folder, you will need to verify you have the file from the container in docker added to the output folder on your host system. This code should do this for you. If not, you may consider adding in code to the dockerfile that mounts the container for you.  
 
-The command line should now install R
-Once done, run the  following command to grab the latest updates/versions.  
+`docker run -it --rm -v "$PWD":/home/SLSCP/output -w /home/SLSCP/output slscp/myimage  ` 
 
-* `sudo apt upgrade r-base r-base-dev`  
+If this still does not work, this [URL][DockerFileSharing] has alternative suggestions to share files back and forth from/to the host and the container in docker. 
 
-# Running the file
-*** 
-1. Open up command line  
-2. Change the directory to **/home/user/R/SLSCP**  
-3. type `RScript slscpCode.R`
-  
-4. The file should run  
-5. Once the file runs, the following output message will appear: *Script has successfully ran! Check the data/output folder for the output file 'Stdout'*  
-6. Check the output file located in **R/SLSCP/data/output** for Stdout.csv  
+## Struggling with docker
+For issues or help with docker, you can visit the [docker reference site][Docker Reference Site].   
 
+# Reference Material
+[RstudioLogin]: https://github.com/aboland/ReproducibleResearch/blob/master/Docker/images/rstudio_login.png
+[RstudioExample]: https://github.com/aboland/ReproducibleResearch/blob/master/Docker/images/rstudio_example.png
+[DockerFileSharing]: https://www.9series.com/blog/easy-methods-to-share-files-from-host-to-docker/
+[Docker Reference Site]:https://docs.docker.com/reference/
+
+Helpful Reference sites:   
+[Sharing and Running R code using Docker](https://aboland.ie/Docker.html)  
+[Docker Reference Site](https://docs.docker.com/reference/)   
+[DockerFileSharing](https://www.9series.com/blog/easy-methods-to-share-files-from-host-to-docker/)

@@ -1,0 +1,152 @@
+# Turn off global warning messages 
+turnOffWarningMessages <- getOption("warn")
+options(warn = -1)
+
+suppressPackageStartupMessages(library(dplyr))
+
+## If a package is installed, it will be loaded. If any 
+## are not, the missing package(s) will be installed 
+## from CRAN and then loaded.
+
+
+## First specify the packages of interest
+ # packages = c("dplyr")
+
+## Now load or install & load all
+ # package.check <- lapply(
+ #   packages,
+ #   FUN = function(x) {
+ #     if (!require(x, character.only = TRUE)) {
+ #       install.packages(x, dependencies = TRUE)
+ #       suppressPackageStartupMessages(library(x, character.only = TRUE))
+ #     }
+ #   }
+ # )
+
+print("Starting Workflow")
+##############################################################################
+# READ DATA
+##############################################################################
+# Read input files
+print("Importing Dataframe's")
+
+plans <- read.csv("data/plans.csv")
+slscp <- read.csv("data/slcsp.csv")
+zips  <- read.csv("data/zips.csv")
+
+##############################################################################
+# Functions
+##############################################################################
+print("Creating Functions...")
+
+#Create a function to calculate 2nd lowest value
+fnRate = function(x) {
+  min(x[x != min(x)])  
+}
+
+# Function to convert numeric values to strings with a given number of 
+#  decimal places, and convert NA to empty string
+fnc = function(var, decimal.places) {
+  var = sprintf(paste0("%1.",decimal.places,"f"), var)
+  var[var=="NA"] = ""
+  var
+}
+##############################################################################
+# Data Aggregations / Manipulation
+##############################################################################
+print("Manipulating Data")
+
+# Create a rate/zip reference table. 
+# Only include metal class silver and remove the plan_id and metal_level columns.
+# Find unique values in the data set and remove duplicate data.
+dfplans <- plans  %>%
+  filter(metal_level == "Silver") %>%
+  select(-plan_id,-metal_level) %>%
+  arrange(state,rate_area) %>%
+  distinct()
+
+# Create a table that grabs all the zip codes from slscp 
+# and links them to zips. Exclude any zip codes not in the slscp file.
+dfslscp <- inner_join(slscp, zips, by = 'zipcode')
+
+# Counts each zip code and how many records there are per rate area
+zipPerRA <-  dfslscp %>%
+  group_by(zipcode,rate_area) %>%
+  count(zipcode,name = 'zip_cnt') %>%
+  as.data.frame()
+
+#Identifies zip codes in multiple rate areas
+zipMultiRA <-  zipPerRA %>%
+  group_by(zipcode) %>%
+  count(zipcode,name = 'zip_cnt') %>%
+  filter(zip_cnt >1) %>%
+  as.data.frame()
+
+# Merges the dfslscp and dfplan dataframe to identify zipcodes, 
+# rate areas and their rates.
+zipsAndRate <- left_join(dfslscp %>% 
+                            dplyr::select(zipcode,state,name,rate_area) 
+                          ,dfplans 
+                          ,by=c('state','rate_area')) %>%
+                arrange(zipcode,name,rate_area,rate)
+
+# Grabs the zip codes with 1 silver plan
+zipsOneScp <-  zipsAndRate %>%
+  group_by(state,name,zipcode) %>%
+  count(zipcode,name = 'zip_cnt') %>%
+  filter(zip_cnt < 2 & !zipcode %in% (zipMultiRA$zipcode)) %>%
+  as.data.frame()
+
+# Grabs all zip codes, and counts how many times they show up 
+# by zip code, state, and county. 
+# Excludes:
+#   Zip codes with more than 1 rate area for a specific zip code
+#   Zip codes with less than 2 silver plans
+findZipsAndRates <-  zipsAndRate %>%
+  group_by(state,name,zipcode) %>%
+  count(zipcode,name = 'zip_cnt') %>%
+  filter(!zipcode %in% (zipMultiRA$zipcode)
+         & !zipcode %in% (zipsOneScp$zipcode)) %>%
+  as.data.frame()
+
+# findZipsAndRates join with Zips and Rates
+#identifies zip codes that meet the criteria to identify the 
+# lowest cost plan
+zipRateScpCri <-  left_join(findZipsAndRates,
+                         zipsAndRate %>% 
+                           dplyr::select(zipcode,rate),
+                         by = 'zipcode')
+
+#Calculate the 2nd lowest silver plan for zip codes that meet the criteria
+CalScp <- zipRateScpCri %>%
+  select(zipcode,state,name,rate) %>%
+  group_by(state,name,zipcode) %>%
+  mutate(rate = fnRate(rate))
+
+# Create a df with just the zipcodes and 2nd lowest cost plan
+stageSt <- CalScp %>% distinct(zipcode, rate)
+
+# Create Stdout and grab all zip codes from slscp, fill in the rates that meet 
+# the criteria with the 2nd lowest silver cost plan. Then round the decimals 
+# to two digits after the decimal point
+Stdout <- left_join(slscp %>%
+                      dplyr::select(zipcode) 
+                      ,stageSt
+                      ,by='zipcode') 
+
+# Set the rate column to have 2 decimal points, even when there's a trailing 0.
+# Remove all NA values.
+Stdout$rate = mapply(fnc, Stdout$rate, 2)
+  
+##############################################################################
+# Export data 
+##############################################################################
+print("Exporting Data to .csv")
+
+# Export Stdout to a CSV file
+write.csv(Stdout, file = "output/Stdout.csv")
+
+#Print an output message for the user.
+print("Workflow finished. Check the output folder for the new csv file.'")
+
+options(warn = turnOffWarningMessages)
